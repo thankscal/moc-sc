@@ -1,0 +1,807 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>工作經歷合併工具</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+    </script>
+    <style>
+        /* 自訂樣式 */
+        body {
+            background: #f4f7fc;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            padding-bottom: 3rem;
+        }
+
+        .app-header {
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            color: #fff;
+            padding: 2rem 0 1.8rem;
+            border-radius: 0 0 2.5rem 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 28px rgba(13, 110, 253, 0.25);
+        }
+        .app-header h1 {
+            font-weight: 700;
+            font-size: 2.2rem;
+            letter-spacing: 1px;
+        }
+        .app-header p {
+            opacity: 0.9;
+            font-weight: 300;
+            margin-bottom: 0;
+        }
+
+        .upload-zone {
+            border: 2.5px dashed #b6d4fe;
+            border-radius: 1.2rem;
+            padding: 2.8rem 1.5rem;
+            background: #ffffff;
+            transition: all 0.25s;
+            cursor: pointer;
+            position: relative;
+        }
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: #0d6efd;
+            background: #f0f7ff;
+            transform: scale(1.005);
+        }
+        .upload-zone .icon {
+            font-size: 3.6rem;
+            color: #0d6efd;
+        }
+        .upload-zone .label {
+            font-weight: 500;
+            color: #2c3e50;
+            margin-top: 0.5rem;
+        }
+        .upload-zone .hint {
+            font-size: 0.9rem;
+            color: #6c7a8a;
+        }
+        #fileInput {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-list {
+            margin-top: 1.2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            align-items: center;
+        }
+        .file-badge {
+            background: #e9ecef;
+            padding: 0.35rem 0.9rem 0.35rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s;
+        }
+        .file-badge .remove {
+            cursor: pointer;
+            color: #dc3545;
+            font-weight: 700;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0 0.2rem;
+        }
+        .file-badge .remove:hover {
+            color: #a71d2a;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.8rem;
+            margin: 1.2rem 0;
+        }
+        .stat-card {
+            background: #fff;
+            border-radius: 0.9rem;
+            padding: 0.8rem 0.6rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid #eef2f6;
+        }
+        .stat-card .num {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #0d6efd;
+            line-height: 1.2;
+        }
+        .stat-card .label {
+            font-size: 0.75rem;
+            color: #6c7a8a;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .table-wrap {
+            background: #fff;
+            border-radius: 1.2rem;
+            padding: 0 0.2rem 0.2rem 0.2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+        }
+        .table-scroll {
+            max-height: 580px;
+            overflow-y: auto;
+            border-radius: 1.2rem;
+        }
+        .table-scroll table {
+            margin-bottom: 0;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .table-scroll thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f8faff;
+        }
+        .table-scroll thead th {
+            background: #f8faff;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+            color: #1e2a3a;
+            padding: 0.7rem 0.6rem;
+            white-space: nowrap;
+        }
+        .table-scroll tbody td {
+            padding: 0.5rem 0.6rem;
+            vertical-align: middle;
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .table-scroll tbody tr:hover {
+            background: #f8fbff;
+        }
+
+        .task-tag {
+            display: inline-block;
+            padding: 0.1rem 0.7rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .task-PF {
+            background: #d0e6ff;
+            color: #004085;
+        }
+        .task-TS {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .task-DY {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .task-WK {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .task-other {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .source-badge {
+            font-size: 0.7rem;
+            background: #eef2f6;
+            padding: 0.1rem 0.6rem;
+            border-radius: 1rem;
+            color: #4a5a6a;
+            white-space: nowrap;
+        }
+
+        .btn-outline-soft {
+            border-color: #dde2e8;
+            color: #2c3e50;
+        }
+        .btn-outline-soft:hover {
+            background: #f0f4fa;
+            border-color: #b6c4d4;
+        }
+
+        /* 空狀態 */
+        .empty-state {
+            padding: 3rem 1rem;
+            text-align: center;
+            color: #8a9aa8;
+        }
+        .empty-state .big-icon {
+            font-size: 3.4rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 576px) {
+            .app-header h1 {
+                font-size: 1.5rem;
+            }
+            .upload-zone {
+                padding: 1.8rem 1rem;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .table-scroll {
+                max-height: 400px;
+            }
+            .table-scroll table {
+                font-size: 0.8rem;
+            }
+            .table-scroll thead th,
+            .table-scroll tbody td {
+                padding: 0.35rem 0.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-header text-center">
+        <div class="container">
+            <h1>📊 工作經歷合併工具</h1>
+            <p>上傳多個 Excel 檔案，自動合併並按日期排序</p>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- 上傳區 -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="upload-zone" id="dropZone">
+                    <div class="text-center">
+                        <div class="icon">📁</div>
+                        <div class="label">拖放檔案至此，或點擊選擇</div>
+                        <div class="hint">支援 .xlsx 及 .xls 格式，可選多個</div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple />
+                </div>
+
+                <!-- 檔案列表 -->
+                <div id="fileList" class="file-list">
+                    <span class="text-muted" style="font-size:0.9rem;" id="fileListPlaceholder">尚未選擇任何檔案</span>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn btn-primary" id="mergeBtn" disabled>
+                        <span id="mergeBtnText">🔄 合併檔案</span>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="clearBtn">
+                        🗑️ 清空列表
+                    </button>
+                    <button class="btn btn-outline-success" id="exportBtn" disabled>
+                        ⬇️ 匯出 Excel
+                    </button>
+                    <span class="ms-auto text-muted small align-self-center" id="fileCountInfo">0 個檔案</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計 & 結果 -->
+        <div id="resultArea" style="display:none;">
+            <!-- 統計卡片 -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">總筆數</div></div>
+                <div class="stat-card"><div class="num" id="statYears">0</div><div class="label">年份數</div></div>
+                <div class="stat-card"><div class="num" id="statStart">-</div><div class="label">最早日期</div></div>
+                <div class="stat-card"><div class="num" id="statEnd">-</div><div class="label">最晚日期</div></div>
+                <div class="stat-card"><div class="num" id="statTotalHours">0</div><div class="label">總工時</div></div>
+            </div>
+
+            <!-- 表格 -->
+            <div class="table-wrap">
+                <div class="table-scroll" id="tableScroll">
+                    <table class="table table-hover" id="resultTable">
+                        <thead>
+                            <tr>
+                                <th style="min-width:100px;">日期</th>
+                                <th style="min-width:80px;">機號</th>
+                                <th style="min-width:80px;">任務描述</th>
+                                <th style="min-width:70px;">實際工時</th>
+                                <th style="min-width:100px;">來源</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody">
+                            <!-- 動態產生 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="mt-2 text-muted small text-end" id="rowCountDisplay"></div>
+        </div>
+
+        <!-- 空狀態 -->
+        <div id="emptyState" class="empty-state">
+            <div class="big-icon">📋</div>
+            <h5 class="mt-3">尚無資料</h5>
+            <p>請上傳工作經歷檔案，點擊「合併檔案」查看結果</p>
+        </div>
+
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ---- DOM refs ----
+            const fileInput = document.getElementById('fileInput');
+            const dropZone = document.getElementById('dropZone');
+            const fileList = document.getElementById('fileList');
+            const fileListPlaceholder = document.getElementById('fileListPlaceholder');
+            const mergeBtn = document.getElementById('mergeBtn');
+            const mergeBtnText = document.getElementById('mergeBtnText');
+            const clearBtn = document.getElementById('clearBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const fileCountInfo = document.getElementById('fileCountInfo');
+            const resultArea = document.getElementById('resultArea');
+            const emptyState = document.getElementById('emptyState');
+
+            const statTotal = document.getElementById('statTotal');
+            const statYears = document.getElementById('statYears');
+            const statStart = document.getElementById('statStart');
+            const statEnd = document.getElementById('statEnd');
+            const statTotalHours = document.getElementById('statTotalHours');
+            const resultBody = document.getElementById('resultBody');
+            const rowCountDisplay = document.getElementById('rowCountDisplay');
+
+            // ---- 狀態 ----
+            let selectedFiles = []; // 儲存 File 物件
+            let mergedData = []; // 合併後的資料陣列 [{日期, 機號, 任務描述, 實際工時, 來源}]
+
+            // ---- helper ----
+            function formatDate(d) {
+                // 輸入可能為 Date 物件或字串 "2024/01/01"
+                if (d instanceof Date) {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}/${m}/${day}`;
+                }
+                if (typeof d === 'string') {
+                    // 嘗試替換 - 為 /
+                    let s = d.replace(/-/g, '/');
+                    // 如果只含數字和斜線，直接回傳
+                    if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(s)) {
+                        const parts = s.split('/');
+                        if (parts[1].length === 1) parts[1] = '0' + parts[1];
+                        if (parts[2].length === 1) parts[2] = '0' + parts[2];
+                        return parts.join('/');
+                    }
+                    return s;
+                }
+                return String(d);
+            }
+
+            function parseDateValue(val) {
+                // 嘗試轉換為 Date
+                if (val instanceof Date) return val;
+                if (typeof val === 'number') {
+                    // Excel 日期序號 (1900 系統)
+                    const d = new Date((val - 25569) * 86400 * 1000);
+                    if (!isNaN(d)) return d;
+                }
+                if (typeof val === 'string') {
+                    let s = val.replace(/-/g, '/');
+                    const d = new Date(s);
+                    if (!isNaN(d)) return d;
+                    // 嘗試 "2024/01/01" 格式
+                    const parts = s.split('/');
+                    if (parts.length === 3) {
+                        const y = parseInt(parts[0], 10);
+                        const m = parseInt(parts[1], 10) - 1;
+                        const day = parseInt(parts[2], 10);
+                        if (!isNaN(y) && !isNaN(m) && !isNaN(day)) {
+                            const d2 = new Date(y, m, day);
+                            if (!isNaN(d2)) return d2;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            function safeString(v) {
+                if (v === undefined || v === null) return '';
+                return String(v).trim();
+            }
+
+            function safeNumber(v) {
+                const n = parseFloat(v);
+                return isNaN(n) ? 0 : n;
+            }
+
+            // ---- 更新檔案列表 UI ----
+            function renderFileList() {
+                // 清空
+                fileList.innerHTML = '';
+                if (selectedFiles.length === 0) {
+                    const placeholder = document.createElement('span');
+                    placeholder.className = 'text-muted';
+                    placeholder.style.fontSize = '0.9rem';
+                    placeholder.textContent = '尚未選擇任何檔案';
+                    fileList.appendChild(placeholder);
+                    fileCountInfo.textContent = '0 個檔案';
+                    mergeBtn.disabled = true;
+                    return;
+                }
+
+                selectedFiles.forEach((f, idx) => {
+                    const badge = document.createElement('span');
+                    badge.className = 'file-badge';
+                    badge.innerHTML = `
+                        <span>📄 ${f.name}</span>
+                        <span class="remove" data-index="${idx}">✕</span>
+                    `;
+                    fileList.appendChild(badge);
+                });
+
+                fileCountInfo.textContent = `${selectedFiles.length} 個檔案`;
+                mergeBtn.disabled = false;
+
+                // 綁定移除事件
+                document.querySelectorAll('.file-badge .remove').forEach(el => {
+                    el.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const idx = parseInt(this.dataset.index, 10);
+                        if (!isNaN(idx)) {
+                            selectedFiles.splice(idx, 1);
+                            renderFileList();
+                            // 如果已合併過，清空結果
+                            if (mergedData.length > 0) {
+                                mergedData = [];
+                                hideResult();
+                            }
+                        }
+                    });
+                });
+            }
+
+            // ---- 顯示/隱藏結果 ----
+            function showResult() {
+                resultArea.style.display = 'block';
+                emptyState.style.display = 'none';
+                exportBtn.disabled = false;
+            }
+
+            function hideResult() {
+                resultArea.style.display = 'none';
+                emptyState.style.display = 'block';
+                exportBtn.disabled = true;
+            }
+
+            // ---- 渲染表格 ----
+            function renderTable(data) {
+                const tbody = resultBody;
+                tbody.innerHTML = '';
+
+                if (!data || data.length === 0) {
+                    hideResult();
+                    return;
+                }
+
+                // 排序：依日期升序
+                const sorted = [...data].sort((a, b) => {
+                    const da = parseDateValue(a['日期']);
+                    const db = parseDateValue(b['日期']);
+                    if (da && db) return da - db;
+                    if (da) return -1;
+                    if (db) return 1;
+                    return String(a['日期']).localeCompare(String(b['日期']));
+                });
+
+                // 統計
+                let totalHours = 0;
+                let minDate = null,
+                    maxDate = null;
+                const yearSet = new Set();
+
+                sorted.forEach(row => {
+                    const hrs = safeNumber(row['實際工時']);
+                    totalHours += hrs;
+                    const d = parseDateValue(row['日期']);
+                    if (d) {
+                        const y = d.getFullYear();
+                        yearSet.add(y);
+                        if (!minDate || d < minDate) minDate = d;
+                        if (!maxDate || d > maxDate) maxDate = d;
+                    }
+                });
+
+                statTotal.textContent = sorted.length;
+                statYears.textContent = yearSet.size;
+                statStart.textContent = minDate ? formatDate(minDate) : '-';
+                statEnd.textContent = maxDate ? formatDate(maxDate) : '-';
+                statTotalHours.textContent = totalHours.toFixed(1);
+
+                // 產生表格列
+                sorted.forEach(row => {
+                    const tr = document.createElement('tr');
+
+                    const dateStr = formatDate(row['日期']);
+                    const machine = safeString(row['機號']);
+                    const task = safeString(row['任務描述']);
+                    const hours = safeNumber(row['實際工時']);
+                    const source = safeString(row['來源'] || '');
+
+                    // 任務標籤
+                    let taskClass = 'task-other';
+                    const taskUpper = task.toUpperCase();
+                    if (taskUpper === 'PF') taskClass = 'task-PF';
+                    else if (taskUpper === 'TS') taskClass = 'task-TS';
+                    else if (taskUpper === 'DY') taskClass = 'task-DY';
+                    else if (taskUpper === 'WK') taskClass = 'task-WK';
+
+                    tr.innerHTML = `
+                        <td><strong>${dateStr}</strong></td>
+                        <td><code>${machine}</code></td>
+                        <td><span class="task-tag ${taskClass}">${task}</span></td>
+                        <td>${hours.toFixed(1)}</td>
+                        <td><span class="source-badge">${source}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                rowCountDisplay.textContent = `共 ${sorted.length} 筆記錄`;
+                showResult();
+            }
+
+            // ---- 合併邏輯 ----
+            async function mergeFiles() {
+                if (selectedFiles.length === 0) {
+                    alert('請先選擇檔案！');
+                    return;
+                }
+
+                mergeBtn.disabled = true;
+                mergeBtnText.textContent = '⏳ 處理中...';
+
+                const allRows = [];
+
+                try {
+                    for (const file of selectedFiles) {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // 轉為 JSON，raw: false 讓日期自動格式化
+                        const rows = XLSX.utils.sheet_to_json(firstSheet, {
+                            raw: false,
+                            dateNF: 'yyyy/mm/dd',
+                            defval: ''
+                        });
+
+                        // 檢查必要的欄位
+                        if (rows.length === 0) continue;
+
+                        // 偵測欄位名稱（可能為 日期, 機號, 任務描述, 實際工時）
+                        const headers = Object.keys(rows[0]);
+                        // 嘗試標準化
+                        let dateKey = headers.find(h => /日期|date/i.test(h));
+                        let machineKey = headers.find(h => /機號|機|machine/i.test(h) && !/日期|date/i.test(h));
+                        let taskKey = headers.find(h => /任務|描述|工作|task|desc/i.test(h));
+                        let hoursKey = headers.find(h => /實際工時|工時|hours|hour|時數/i.test(h));
+
+                        // 若找不到精確匹配，嘗試用位置推測
+                        if (!dateKey && headers.length >= 1) dateKey = headers[0];
+                        if (!machineKey && headers.length >= 2) machineKey = headers[1];
+                        if (!taskKey && headers.length >= 3) taskKey = headers[2];
+                        if (!hoursKey && headers.length >= 4) hoursKey = headers[3];
+
+                        if (!dateKey || !machineKey || !taskKey || !hoursKey) {
+                            console.warn(`檔案 ${file.name} 欄位不完整，跳過部分資料`);
+                        }
+
+                        const fileName = file.name;
+
+                        rows.forEach(row => {
+                            // 嘗試取得各欄位值
+                            const dateVal = dateKey ? row[dateKey] : undefined;
+                            const machineVal = machineKey ? row[machineKey] : undefined;
+                            const taskVal = taskKey ? row[taskKey] : undefined;
+                            const hoursVal = hoursKey ? row[hoursKey] : undefined;
+
+                            // 過濾無效列 (日期或機號為空)
+                            if (!dateVal && !machineVal) return;
+
+                            allRows.push({
+                                '日期': dateVal !== undefined ? dateVal : '',
+                                '機號': machineVal !== undefined ? String(machineVal) : '',
+                                '任務描述': taskVal !== undefined ? String(taskVal) : '',
+                                '實際工時': hoursVal !== undefined ? parseFloat(hoursVal) || 0 : 0,
+                                '來源': fileName
+                            });
+                        });
+                    }
+
+                    if (allRows.length === 0) {
+                        alert('沒有讀取到任何有效資料，請確認檔案格式正確。');
+                        mergeBtn.disabled = false;
+                        mergeBtnText.textContent = '🔄 合併檔案';
+                        return;
+                    }
+
+                    mergedData = allRows;
+                    renderTable(mergedData);
+
+                } catch (err) {
+                    console.error(err);
+                    alert('處理檔案時發生錯誤：' + err.message);
+                } finally {
+                    mergeBtn.disabled = false;
+                    mergeBtnText.textContent = '🔄 合併檔案';
+                }
+            }
+
+            // ---- 匯出 Excel ----
+            function exportExcel() {
+                if (mergedData.length === 0) {
+                    alert('沒有資料可匯出，請先合併檔案。');
+                    return;
+                }
+
+                // 準備匯出資料（加上排序）
+                const sorted = [...mergedData].sort((a, b) => {
+                    const da = parseDateValue(a['日期']);
+                    const db = parseDateValue(b['日期']);
+                    if (da && db) return da - db;
+                    if (da) return -1;
+                    if (db) return 1;
+                    return String(a['日期']).localeCompare(String(b['日期']));
+                });
+
+                // 加入一列 "年份" 方便篩選
+                const exportRows = sorted.map(row => {
+                    const d = parseDateValue(row['日期']);
+                    const year = d ? d.getFullYear() : '';
+                    return {
+                        '年份': year,
+                        '日期': formatDate(row['日期']),
+                        '機號': row['機號'],
+                        '任務描述': row['任務描述'],
+                        '實際工時': row['實際工時'],
+                        '來源': row['來源']
+                    };
+                });
+
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(exportRows);
+                XLSX.utils.book_append_sheet(wb, ws, '合併資料');
+
+                // 自動欄寬 (簡易)
+                const colWidths = [
+                    { wch: 10 }, // 年份
+                    { wch: 14 }, // 日期
+                    { wch: 12 }, // 機號
+                    { wch: 14 }, // 任務描述
+                    { wch: 12 }, // 實際工時
+                    { wch: 22 }, // 來源
+                ];
+                ws['!cols'] = colWidths;
+
+                const now = new Date();
+                const ts =
+                    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+                const filename = `工作經歷_合併_${ts}.xlsx`;
+
+                XLSX.writeFile(wb, filename);
+            }
+
+            // ---- 清空 ----
+            function clearAll() {
+                selectedFiles = [];
+                mergedData = [];
+                renderFileList();
+                hideResult();
+                fileInput.value = '';
+                // 重置統計
+                statTotal.textContent = '0';
+                statYears.textContent = '0';
+                statStart.textContent = '-';
+                statEnd.textContent = '-';
+                statTotalHours.textContent = '0';
+                resultBody.innerHTML = '';
+                rowCountDisplay.textContent = '';
+                exportBtn.disabled = true;
+            }
+
+            // ---- 事件綁定 ----
+
+            // 檔案選擇
+            fileInput.addEventListener('change', function(e) {
+                const files = this.files;
+                if (files.length > 0) {
+                    // 過濾 .xlsx .xls
+                    for (const f of files) {
+                        const ext = f.name.split('.').pop().toLowerCase();
+                        if (ext === 'xlsx' || ext === 'xls') {
+                            // 避免重複
+                            const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size);
+                            if (!exists) {
+                                selectedFiles.push(f);
+                            }
+                        } else {
+                            alert(`檔案 "${f.name}" 不是 Excel 格式 (.xlsx / .xls)，已略過。`);
+                        }
+                    }
+                    renderFileList();
+                    // 如果已有合併結果，清空
+                    if (mergedData.length > 0) {
+                        mergedData = [];
+                        hideResult();
+                    }
+                }
+                this.value = ''; // 允許重複選擇相同檔案
+            });
+
+            // 拖放
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('dragover');
+            });
+            dropZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+            });
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    for (const f of files) {
+                        const ext = f.name.split('.').pop().toLowerCase();
+                        if (ext === 'xlsx' || ext === 'xls') {
+                            const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size);
+                            if (!exists) {
+                                selectedFiles.push(f);
+                            }
+                        } else {
+                            alert(`檔案 "${f.name}" 不是 Excel 格式 (.xlsx / .xls)，已略過。`);
+                        }
+                    }
+                    renderFileList();
+                    if (mergedData.length > 0) {
+                        mergedData = [];
+                        hideResult();
+                    }
+                }
+            });
+
+            // 合併按鈕
+            mergeBtn.addEventListener('click', mergeFiles);
+
+            // 清空按鈕
+            clearBtn.addEventListener('click', clearAll);
+
+            // 匯出按鈕
+            exportBtn.addEventListener('click', exportExcel);
+
+            // ---- 初始化 ----
+            hideResult();
+            renderFileList();
+
+            // 也支援點擊整個區域觸發檔案選擇
+            dropZone.addEventListener('click', function(e) {
+                if (e.target.tagName !== 'INPUT') {
+                    fileInput.click();
+                }
+            });
+
+        })();
+    </script>
+
+</body>
+</html>
