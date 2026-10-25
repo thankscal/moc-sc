@@ -76,6 +76,7 @@
         .alert-secondary { background-color: #ffffff !important; border: 1px solid #dee2e6; color: #2c3e50; }
         .feature-note { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem; }
         .legend-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin: 2px; }
+        .color-warn-box { background-color: #fff3cd; border-left: 4px solid #ff9800; padding: 10px 15px; border-radius: 8px; margin-top: 10px; font-size: 0.85rem; display: none; }
     </style>
 </head>
 <body>
@@ -94,7 +95,7 @@
         <span class="legend-chip" style="background:#e53935;color:#fff;">紅 255,0,0 → 值班開晨報</span>
         <span class="legend-chip" style="background:#7cb342;color:#fff;">綠 146,208,80 → 隨機</span>
         <span class="legend-chip" style="background:#64b5f6;color:#fff;">藍 189,215,238 → 公差上課</span><br>
-        • <strong>注意</strong>：請先點「清除資料」再上傳，避免讀到舊快取。
+        • <strong>注意</strong>：若色塊是用 Excel「設定格式化的條件」產生，SheetJS 無法讀取，請改為手動填色。若讀不到色塊，可開啟瀏覽器控制台（F12）查看除錯資訊。
     </div>
 
     <div class="card"><div class="card-body"><h5 class="card-title"><i class="bi bi-upload"></i> 上傳班表檔案</h5>
@@ -106,6 +107,7 @@
             <button class="btn btn-primary btn-lg" id="selectFileBtn"><i class="bi bi-folder2-open"></i> <span class="file-btn-text">選擇檔案</span></button>
             <div id="fileInfo" class="file-info mt-3" style="display: none;"><i class="bi bi-check-circle text-success"></i><span id="fileName"></span></div>
             <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="colorWarnBox" class="color-warn-box"><i class="bi bi-exclamation-triangle-fill text-warning"></i> <span id="colorWarnText"></span></div>
         </div>
     </div></div>
 
@@ -200,7 +202,7 @@ const defaultShiftColors = {
 const SPECIAL_DEFAULT_COLOR = { r: 255, g: 192, b: 203 };
 
 /* =========================================================
-   色塊 → 註記文字
+   色塊 → 註記文字（改為 RGB 距離比對）
    ========================================================= */
 const TAG_COLOR_DEFS = [
     { rgb: [255, 255, 0],     label: '坐檯人員' },
@@ -208,6 +210,8 @@ const TAG_COLOR_DEFS = [
     { rgb: [146, 208, 80],    label: '隨機' },
     { rgb: [189, 215, 238],   label: '公差上課' }
 ];
+const COLOR_MATCH_TOLERANCE = 50; // 歐幾里得距離容差
+
 const TAG_STYLES = {
     '坐檯人員':   { bg: '#ffd54f', color: '#5d4037' },
     '值班開晨報': { bg: '#e53935', color: '#ffffff' },
@@ -215,12 +219,36 @@ const TAG_STYLES = {
     '公差上課':   { bg: '#64b5f6', color: '#ffffff' }
 };
 
-/* 預設 Office 主題色（備用） */
+/* Excel 2013+ 預設主題色（修正版） */
 const THEME_COLORS = [
-    [0, 0, 0], [255, 255, 255], [68, 84, 106], [231, 230, 230],
-    [68, 114, 196], [237, 125, 49], [165, 165, 165], [255, 192, 0],
-    [91, 155, 213], [112, 173, 71], [5, 99, 193], [149, 79, 114]
+    [255, 255, 255],  // 0 lt1
+    [0, 0, 0],        // 1 dk1
+    [238, 236, 225],  // 2 lt2
+    [31, 73, 125],    // 3 dk2
+    [79, 129, 189],   // 4 accent1
+    [192, 80, 77],    // 5 accent2
+    [155, 187, 89],   // 6 accent3
+    [128, 100, 162],  // 7 accent4
+    [75, 172, 198],   // 8 accent5
+    [247, 150, 70],   // 9 accent6
+    [0, 0, 255],      // 10 hlink
+    [128, 0, 128]     // 11 folHlink
 ];
+
+/* Excel 預設 indexed 調色盤（涵蓋常用前 64 色） */
+const INDEXED_COLORS = (() => {
+    const base = [
+        [0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],
+        [0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],
+        [128,0,0],[0,128,0],[0,0,128],[128,128,0],[128,0,128],[0,128,128],[192,192,192],[128,128,128],
+        [153,153,255],[153,51,102],[255,255,204],[204,255,255],[102,0,102],[255,128,128],[0,102,204],[204,204,255],
+        [0,0,128],[255,0,255],[255,255,0],[0,255,255],[128,0,128],[128,0,0],[0,128,128],[0,0,255],
+        [0,204,255],[204,255,255],[204,255,204],[255,255,153],[153,204,255],[255,153,204],[204,153,255],[255,204,153],
+        [51,102,255],[51,204,204],[153,204,0],[255,204,0],[255,153,0],[255,102,0],[102,102,153],[150,150,150],
+        [0,51,102],[51,153,102],[0,51,0],[51,51,0],[153,51,0],[153,51,102],[51,51,153],[51,51,51]
+    ];
+    return base;
+})();
 
 /* =========================================================
    全域狀態
@@ -236,24 +264,23 @@ let isSummaryCollapsed = true;
 let globalSpecialShifts = new Set();
 
 const STORAGE_KEYS = {
-    SCHEDULE_DATA: 'ts_schedule_v3',
-    ALL_DATES: 'ts_dates_v3',
-    WEEK_LABELS: 'ts_weeks_v3',
-    FILE_NAME: 'ts_file_v3',
-    TIMESTAMP: 'ts_ts_v3',
-    SHIFT_COLORS: 'ts_colors_v3',
-    WEEK_START_DAY: 'ts_weekstart_v3',
-    SPECIAL_SHIFTS: 'ts_special_v3'
+    SCHEDULE_DATA: 'ts_schedule_v4',
+    ALL_DATES: 'ts_dates_v4',
+    WEEK_LABELS: 'ts_weeks_v4',
+    FILE_NAME: 'ts_file_v4',
+    TIMESTAMP: 'ts_ts_v4',
+    SHIFT_COLORS: 'ts_colors_v4',
+    WEEK_START_DAY: 'ts_weekstart_v4',
+    SPECIAL_SHIFTS: 'ts_special_v4'
 };
 
 /* =========================================================
-   顏色解析工具
+   顏色解析工具（改進版）
    ========================================================= */
 function applyTint(rgb, tint) {
     let r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
     let max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let l = (max + min) / 2;
-    let h = 0, s = 0;
+    let h = 0, s = 0, l = (max + min) / 2;
     if (max !== min) {
         const d = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -262,12 +289,20 @@ function applyTint(rgb, tint) {
         else h = (r - g) / d + 4;
         h /= 6;
     }
-    l = tint > 0 ? l + (1 - l) * tint : l * (1 + tint);
+    // ECMA-376 tint：正 tint 會降低飽和度並提高亮度；負 tint 只降亮度
+    if (tint < 0) {
+        l = l * (1 + tint);
+    } else {
+        l = l * (1 - tint) + tint;
+        s = s * (1 - tint);
+    }
     l = Math.min(1, Math.max(0, l));
+    s = Math.min(1, Math.max(0, s));
 
     let r2, g2, b2;
-    if (s === 0) { r2 = g2 = b2 = l; }
-    else {
+    if (s === 0) {
+        r2 = g2 = b2 = l;
+    } else {
         const hue2rgb = (p, q, t) => {
             if (t < 0) t += 1;
             if (t > 1) t -= 1;
@@ -298,6 +333,11 @@ function colorObjToRgb(c) {
         }
         return null;
     }
+    if (typeof c.indexed === 'number') {
+        const base = INDEXED_COLORS[c.indexed];
+        if (base) return { r: base[0], g: base[1], b: base[2] };
+        return null;
+    }
     if (typeof c.theme === 'number') {
         const base = THEME_COLORS[c.theme];
         if (!base) return null;
@@ -310,7 +350,8 @@ function colorObjToRgb(c) {
 
 function getCellFillRgb(cell) {
     if (!cell || !cell.s || typeof cell.s !== 'object') return null;
-    const fill = cell.s.fill;
+    // 兼容 fill 與 patternFill 兩種鍵名
+    const fill = cell.s.fill || cell.s.patternFill;
     if (!fill) return null;
     const pt = fill.patternType || fill.pattern || '';
     if (pt === 'none') return null;
@@ -322,13 +363,16 @@ function getCellFillRgb(cell) {
 function getColorTag(cell) {
     const rgb = getCellFillRgb(cell);
     if (!rgb) return '';
+    let bestLabel = '';
+    let bestDist = Infinity;
     for (const def of TAG_COLOR_DEFS) {
-        if (Math.abs(rgb.r - def.rgb[0]) <= 10 &&
-            Math.abs(rgb.g - def.rgb[1]) <= 10 &&
-            Math.abs(rgb.b - def.rgb[2]) <= 10) {
-            return def.label;
-        }
+        const dr = rgb.r - def.rgb[0];
+        const dg = rgb.g - def.rgb[1];
+        const db = rgb.b - def.rgb[2];
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+        if (dist < bestDist) { bestDist = dist; bestLabel = def.label; }
     }
+    if (bestDist <= COLOR_MATCH_TOLERANCE) return bestLabel;
     return '';
 }
 
@@ -360,9 +404,6 @@ function getSortedShiftList(shiftSet) {
     return [...work, ...hol];
 }
 
-/* =========================================================
-   顏色儲存
-   ========================================================= */
 function saveColorSettingsToLocal() {
     localStorage.setItem(STORAGE_KEYS.SHIFT_COLORS, JSON.stringify(shiftColors));
 }
@@ -384,7 +425,7 @@ function refreshSpecialShiftsFromData() {
 }
 
 /* =========================================================
-   解析 Excel
+   解析 Excel（改用 arrayBuffer + 樣式除錯）
    ========================================================= */
 function parseWorkbook(workbook, fileName) {
     scheduleData = [];
@@ -452,7 +493,11 @@ function parseWorkbook(workbook, fileName) {
         if (lbl) weekLabels[d.date] = lbl;
     });
 
-    /* ---- 人員 ---- */
+    /* ---- 人員（含色塊除錯） ---- */
+    let styleCellCount = 0;
+    let coloredCellCount = 0;
+    const debugSamples = [];
+
     for (let r = dateRowIdx + 1; r < json.length; r++) {
         const row = json[r] || [];
         const empIdRaw = row[1];
@@ -475,7 +520,23 @@ function parseWorkbook(workbook, fileName) {
             let shiftCode = '';
             if (txt) shiftCode = txt.split(/[\/／\s]+/)[0].trim();
 
+            if (cell && cell.s) styleCellCount++;
             const tag = getColorTag(cell);
+            if (tag) coloredCellCount++;
+
+            // 除錯：收集有樣式但沒匹配到的 cell 樣本
+            if (cell && cell.s && !tag && debugSamples.length < 30) {
+                const rawFill = cell.s.fill || cell.s.patternFill;
+                if (rawFill && rawFill.patternType && rawFill.patternType !== 'none') {
+                    debugSamples.push({
+                        row: r, col: d.colIndex, date: d.date,
+                        value: txt,
+                        fgColor: rawFill.fgColor,
+                        bgColor: rawFill.bgColor,
+                        patternType: rawFill.patternType
+                    });
+                }
+            }
 
             if (shiftCode || tag) {
                 shifts[d.date] = { shift: shiftCode, tag: tag, note: '' };
@@ -483,6 +544,35 @@ function parseWorkbook(workbook, fileName) {
             }
         }
         if (hasData) scheduleData.push({ empId, category, name, shifts });
+    }
+
+    // ===== 色塊除錯輸出 =====
+    console.group('[班表小助手] 色塊解析報告');
+    console.log('有樣式的 cell 數量：', styleCellCount);
+    console.log('成功匹配色塊的 cell 數量：', coloredCellCount);
+    if (debugSamples.length) {
+        console.warn('以下 cell 有填充色但未匹配到任何標籤（顯示前 30 筆）：');
+        console.table(debugSamples);
+        console.warn('提示：若 fgColor/bgColor 為 {theme: X, tint: Y} 或 {indexed: N}，代表顏色非直接 RGB 儲存；本工具已嘗試換算。若色塊是「設定格式化的條件」產生，SheetJS 無法讀取。');
+    } else if (coloredCellCount === 0 && styleCellCount > 0) {
+        console.warn('偵測到樣式但沒有任何色塊匹配。請確認 Excel 中色塊是否為「手動填色」而非「條件格式化」。');
+    } else if (styleCellCount === 0) {
+        console.warn('完全讀不到任何樣式資訊。可能原因：檔案不是 .xlsx 格式、或儲存時未保留樣式。請用 Excel 重新另存為 .xlsx 後再上傳。');
+    }
+    console.groupEnd();
+
+    // 頁面提示
+    const warnBox = document.getElementById('colorWarnBox');
+    const warnText = document.getElementById('colorWarnText');
+    if (coloredCellCount === 0) {
+        if (styleCellCount === 0) {
+            warnText.textContent = '讀不到任何儲存格樣式，色塊無法標記。請用 Excel 重新另存為 .xlsx 後再上傳。';
+        } else {
+            warnText.textContent = '讀到樣式但沒有色塊匹配。可能色塊是「條件格式化」產生（SheetJS 無法讀取），或顏色值與定義不符。請開啟 F12 控制台查看詳細資訊。';
+        }
+        warnBox.style.display = 'block';
+    } else {
+        warnBox.style.display = 'none';
     }
 
     if (!scheduleData.length) { showError('沒有解析到任何人員資料，請確認表格格式'); return; }
@@ -690,7 +780,6 @@ function createWeeklyCalendar(personData) {
                     td.classList.add('today');
                 }
 
-                // 週次
                 const wk = weekLabels[dateNum];
                 if (wk) {
                     const wkDiv = document.createElement('div');
@@ -699,7 +788,6 @@ function createWeeklyCalendar(personData) {
                     td.appendChild(wkDiv);
                 }
 
-                // 日期
                 const dateDiv = document.createElement('div');
                 dateDiv.className = 'day-date';
                 dateDiv.textContent = dateNum;
@@ -725,7 +813,6 @@ function createWeeklyCalendar(personData) {
                     td.style.backgroundColor = '#fff9ef';
                 }
 
-                // 色塊註記
                 if (sd && sd.tag) {
                     const tagDiv = document.createElement('div');
                     const st = TAG_STYLES[sd.tag] || { bg: '#9e9e9e', color: '#fff' };
@@ -736,7 +823,6 @@ function createWeeklyCalendar(personData) {
                     td.appendChild(tagDiv);
                 }
 
-                // 備註
                 if (sd && sd.note && sd.note.trim() !== '') {
                     const noteDiv = document.createElement('div');
                     noteDiv.className = 'day-note';
@@ -785,6 +871,7 @@ function openShiftPicker(dateNum, personData) {
           </div>
           <div class="modal-body" style="max-height:420px;overflow-y:auto;">
             ${weekLabels[dateNum] ? `<div class="mb-2"><span class="badge bg-primary">${escapeHtml(weekLabels[dateNum])}</span></div>` : ''}
+            ${existing.tag ? `<div class="mb-2"><span class="day-tag" style="background:${(TAG_STYLES[existing.tag]||{}).bg||'#9e9e9e'};color:${(TAG_STYLES[existing.tag]||{}).color||'#fff'};font-size:0.75rem;">${escapeHtml(existing.tag)}</span></div>` : ''}
             <div class="d-flex flex-wrap gap-2" id="shiftOptionsContainer"></div>
             <div class="mt-3">
               <label class="form-label">備註 (最多${maxNoteLength}字，會顯示在日期格子內)</label>
@@ -792,7 +879,7 @@ function openShiftPicker(dateNum, personData) {
               <div class="text-end mt-1"><small id="noteRemaining" class="text-muted">剩餘 ${remaining} 字</small></div>
             </div>
             <div class="mt-2">
-              <button type="button" class="btn btn-outline-danger btn-sm" id="clearShiftBtn">清除此日班型</button>
+              <button type="button" class="btn btn-outline-danger btn-sm" id="clearShiftBtn">清除此日班型與色塊註記</button>
             </div>
           </div>
           <div class="modal-footer">
@@ -1355,20 +1442,30 @@ function showError(msg) {
     errDiv.style.display = 'block';
     hideLoading();
 }
+
+/* ★★★ 關鍵改動：改用 arrayBuffer + type:'array'，樣式讀取更可靠 ★★★ */
 function handleFile(file) {
     if (!file) return;
     showLoading();
     const reader = new FileReader();
     reader.onload = e => {
         try {
-            const wb = XLSX.read(e.target.result, { type: 'binary', cellStyles: true, cellDates: false });
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, {
+                type: 'array',
+                cellStyles: true,     // 讀取儲存格樣式（關鍵）
+                cellNF: true,
+                cellDates: false,
+                dense: false
+            });
             parseWorkbook(wb, file.name);
         } catch (err) {
             console.error(err);
             showError('解析失敗：' + err.message);
         }
     };
-    reader.readAsBinaryString(file);
+    reader.onerror = () => showError('檔案讀取失敗');
+    reader.readAsArrayBuffer(file);
 }
 
 function addFloatCopyButton() {
@@ -1459,13 +1556,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = document.getElementById('personSelect');
         if (sel.options.length > 1) {
             sel.selectedIndex = 1;
-            showSelectedPersonSchedule();
-        } else {
-            showSelectedPersonSchedule();
         }
+        showSelectedPersonSchedule();
     });
     document.getElementById('personSelect').onchange = () => showSelectedPersonSchedule();
 });
 </script>
 </body>
-</html>
+    </html>
